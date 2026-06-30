@@ -1,0 +1,15 @@
+[versions]
+agp = "9.2.1"
+coreKtx = "1.19.0"
+material = "1.14.0"
+xposedApi = "102.0.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+xposed-api = { group = "io.github.libxposed", name = "api", version.ref = "xposedApi" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+
