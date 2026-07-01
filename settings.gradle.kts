@@ -22,5 +22,6 @@ dependencyResolutionManagement {
 rootProject.name = "EleutheriaX"
 include(
     ":eleutheriax",
+    ":sample-app",
     ":sample-module"
 )
