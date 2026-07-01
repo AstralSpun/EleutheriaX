@@ -99,12 +99,14 @@ object ReflectionUtils {
 
         fun find(): Result<Method> {
             val source = resolveDeclaredClass(declaredClass, declaredClassName, loader)
+            val targetReturnType = returnType?.let { resolveClass(it, loader) }
+            val targetParameterTypes = parameterTypes?.let { resolveClasses(it, loader) }
             return Result(buildSign(source), findInHierarchy(source, searchSuperclasses) { clazz ->
                 clazz.declaredMethods
                     .filter { method -> methodName == null || method.name == methodName }
-                    .filter { method -> returnType == null || typeMatches(method.returnType, returnType!!, matchParentClass) }
+                    .filter { method -> targetReturnType == null || typeMatches(method.returnType, targetReturnType, matchParentClass) }
                     .filter { method -> parameterCount == null || method.parameterCount == parameterCount }
-                    .filter { method -> parameterTypes == null || parameterTypesMatch(method.parameterTypes, parameterTypes!!, matchParentClass) }
+                    .filter { method -> targetParameterTypes == null || parameterTypesMatch(method.parameterTypes, targetParameterTypes, matchParentClass) }
             })
         }
 
@@ -132,9 +134,10 @@ object ReflectionUtils {
 
         fun find(): Result<Constructor<*>> {
             val source = resolveDeclaredClass(declaredClass, declaredClassName, loader)
+            val targetParameterTypes = parameterTypes?.let { resolveClasses(it, loader) }
             return Result(buildSign(source), source.declaredConstructors
                 .filter { constructor -> parameterCount == null || constructor.parameterCount == parameterCount }
-                .filter { constructor -> parameterTypes == null || parameterTypesMatch(constructor.parameterTypes, parameterTypes!!, matchParentClass) })
+                .filter { constructor -> targetParameterTypes == null || parameterTypesMatch(constructor.parameterTypes, targetParameterTypes, matchParentClass) })
         }
 
         private fun buildSign(source: Class<*>): String =
@@ -160,10 +163,11 @@ object ReflectionUtils {
 
         fun find(): Result<Field> {
             val source = resolveDeclaredClass(declaredClass, declaredClassName, loader)
+            val targetFieldType = fieldType?.let { resolveClass(it, loader) }
             return Result(buildSign(source), findInHierarchy(source, searchSuperclasses) { clazz ->
                 clazz.declaredFields
                     .filter { field -> fieldName == null || field.name == fieldName }
-                    .filter { field -> fieldType == null || typeMatches(field.type, fieldType!!, matchParentClass) }
+                    .filter { field -> targetFieldType == null || typeMatches(field.type, targetFieldType, matchParentClass) }
             })
         }
 
@@ -219,9 +223,19 @@ object ReflectionUtils {
         declaredClass: Class<*>?,
         declaredClassName: String?,
         loader: ClassLoader?
-    ): Class<*> = declaredClass
+    ): Class<*> = declaredClass?.let { resolveClass(it, loader) }
         ?: declaredClassName?.let { findClass(it, loader) }
         ?: throw ReflectionException("declaredClass is null")
+
+    private fun resolveClasses(types: Array<out Class<*>>, loader: ClassLoader?): Array<Class<*>> =
+        Array(types.size) { resolveClass(types[it], loader) }
+
+    private fun resolveClass(clazz: Class<*>, loader: ClassLoader?): Class<*> {
+        if (clazz == Ignore::class.java || clazz.isPrimitive || clazz.classLoader == null) return clazz
+        val targetLoader = loader ?: classLoaderContext.get() ?: return clazz
+        if (clazz.classLoader == targetLoader) return clazz
+        return runCatching { findClass(clazz.name, targetLoader) }.getOrDefault(clazz)
+    }
 
     internal fun <T> withDefaultClassLoader(loader: ClassLoader, block: () -> T): T {
         val last = classLoaderContext.get()
