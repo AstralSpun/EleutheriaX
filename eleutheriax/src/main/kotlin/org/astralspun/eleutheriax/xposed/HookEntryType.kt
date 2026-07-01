@@ -1,4 +1,4 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed
 
 internal enum class HookEntryType {
     PACKAGE,

@@ -1,4 +1,4 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed.param
 
 import android.app.Application
 import android.content.Context
@@ -7,6 +7,15 @@ import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
 import io.github.libxposed.api.XposedInterface
+import org.astralspun.eleutheriax.EleutheriaX
+import org.astralspun.eleutheriax.log.logW
+import org.astralspun.eleutheriax.xposed.EleutheriaXModule
+import org.astralspun.eleutheriax.xposed.HookEntryType
+import org.astralspun.eleutheriax.xposed.hook.MemberHookCreator
+import org.astralspun.eleutheriax.xposed.hook.hookMember
+import org.astralspun.eleutheriax.xposed.hooker.EleutheriaXBaseHooker
+import org.astralspun.eleutheriax.xposed.lifecycle.AppLifecycleManager
+import org.astralspun.eleutheriax.xposed.param.wrapper.PackageParamWrapper
 
 open class PackageParam internal constructor(
     private var currentModule: EleutheriaXModule? = null,

@@ -1,4 +1,4 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed
 
 enum class HookStage {
     MODULE_LOADED,

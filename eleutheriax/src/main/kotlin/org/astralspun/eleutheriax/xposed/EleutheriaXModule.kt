@@ -1,10 +1,19 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed
 
 import android.content.pm.ApplicationInfo
 import android.os.Build
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
+import org.astralspun.eleutheriax.EleutheriaX
+import org.astralspun.eleutheriax.log.logE
+import org.astralspun.eleutheriax.reflect.ReflectionUtils
+import org.astralspun.eleutheriax.xposed.hook.MemberHookCreator
+import org.astralspun.eleutheriax.xposed.hook.hookMember
+import org.astralspun.eleutheriax.xposed.hooker.EleutheriaXBaseHooker
+import org.astralspun.eleutheriax.xposed.lifecycle.AppLifecycleManager
+import org.astralspun.eleutheriax.xposed.param.PackageParam
+import org.astralspun.eleutheriax.xposed.param.wrapper.PackageParamWrapper
 
 abstract class EleutheriaXModule : XposedModule() {
 

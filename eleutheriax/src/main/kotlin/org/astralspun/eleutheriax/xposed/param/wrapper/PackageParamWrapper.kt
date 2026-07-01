@@ -1,6 +1,9 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed.param.wrapper
 
 import android.content.pm.ApplicationInfo
+import org.astralspun.eleutheriax.xposed.HookEntryType
+import org.astralspun.eleutheriax.xposed.HookStage
+import org.astralspun.eleutheriax.xposed.param.PackageParam
 
 internal class PackageParamWrapper internal constructor(
     var type: HookEntryType,

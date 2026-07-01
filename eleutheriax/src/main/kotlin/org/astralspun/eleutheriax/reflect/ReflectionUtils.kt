@@ -1,4 +1,4 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.reflect
 
 import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Array as ReflectArray

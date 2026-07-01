@@ -1,6 +1,8 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed.hook
 
 import io.github.libxposed.api.XposedInterface
+import org.astralspun.eleutheriax.xposed.EleutheriaXModule
+import org.astralspun.eleutheriax.xposed.param.PackageParam
 import java.lang.reflect.Executable
 
 fun XposedInterface.hookMember(

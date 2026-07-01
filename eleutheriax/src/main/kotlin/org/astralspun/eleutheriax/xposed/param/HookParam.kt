@@ -1,4 +1,4 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed.param
 
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Constructor

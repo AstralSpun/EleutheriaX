@@ -1,4 +1,4 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed.lifecycle
 
 import android.annotation.SuppressLint
 import android.app.Application
@@ -9,6 +9,12 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
 import android.os.Build
+import org.astralspun.eleutheriax.EleutheriaX
+import org.astralspun.eleutheriax.log.logE
+import org.astralspun.eleutheriax.reflect.ReflectionUtils
+import org.astralspun.eleutheriax.xposed.EleutheriaXModule
+import org.astralspun.eleutheriax.xposed.hook.hook
+import org.astralspun.eleutheriax.xposed.param.PackageParam
 
 internal object AppLifecycleManager {
 

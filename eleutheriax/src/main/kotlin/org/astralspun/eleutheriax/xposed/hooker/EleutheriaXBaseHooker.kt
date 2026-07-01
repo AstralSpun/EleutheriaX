@@ -1,4 +1,7 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.xposed.hooker
+
+import org.astralspun.eleutheriax.log.logE
+import org.astralspun.eleutheriax.xposed.param.PackageParam
 
 abstract class EleutheriaXBaseHooker : PackageParam() {
 

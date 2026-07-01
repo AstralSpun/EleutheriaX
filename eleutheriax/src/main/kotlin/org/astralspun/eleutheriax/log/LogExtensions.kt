@@ -1,4 +1,4 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.log
 
 import android.util.Log
 import io.github.libxposed.api.XposedInterface

@@ -1,5 +1,6 @@
-package org.astralspun.eleutheriax
+package org.astralspun.eleutheriax.reflect
 
+import org.astralspun.eleutheriax.xposed.param.PackageParam
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
