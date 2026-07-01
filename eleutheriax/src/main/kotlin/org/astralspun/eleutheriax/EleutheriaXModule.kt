@@ -25,6 +25,16 @@ abstract class EleutheriaXModule : XposedModule() {
         packageParamCallback = initiate
     }
 
+    fun encase(vararg hooker: EleutheriaXBaseHooker) {
+        packageParamCallback = {
+            if (hooker.isEmpty()) {
+                logE("Failed to passing \"encase\" method because your hooker param is empty")
+            } else {
+                hooker.forEach { it.assignInstance(this) }
+            }
+        }
+    }
+
     fun java.lang.reflect.Executable.hook(
         initiate: MemberHookCreator.() -> Unit
     ): XposedInterface.HookHandle = hookMember(this, initiate)
@@ -139,8 +149,10 @@ abstract class EleutheriaXModule : XposedModule() {
             isSystemServer = isSystemServer
         )?.also {
             runCatching {
-                packageParamCallback?.invoke(it.instantiate().assign(it))
-                if (it.type == HookEntryType.PACKAGE) AppLifecycleManager.registerToAppLifecycle(this, it.packageName)
+                ReflectionUtils.withDefaultClassLoader(it.appClassLoader) {
+                    packageParamCallback?.invoke(it.instantiate().assign(this, it))
+                    if (it.type == HookEntryType.PACKAGE) AppLifecycleManager.registerToAppLifecycle(this, it.packageName)
+                }
             }.onFailure {
                 logE("An exception occurred in EleutheriaX hook process", it)
             }

@@ -18,7 +18,9 @@ internal object AppLifecycleManager {
     internal var isOnFailureThrowToApp: Boolean? = null
 
     internal fun get(param: PackageParam) =
-        appLifecycleActors[param.packageName] ?: AppLifecycleActor().also { appLifecycleActors[param.packageName] = it }
+        appLifecycleActors[param.packageName]?.also {
+            it.classLoader = param.appClassLoader
+        } ?: AppLifecycleActor(param.appClassLoader).also { appLifecycleActors[param.packageName] = it }
 
     @SuppressLint("DiscouragedPrivateApi")
     internal fun registerToAppLifecycle(module: EleutheriaXModule, packageName: String) {
@@ -28,14 +30,18 @@ internal object AppLifecycleManager {
                 before {
                     runLifecycle(module) {
                         appLifecycleActors.forEach { (_, actor) ->
-                            (args.getOrNull(0) as? Context)?.also { actor.attachBaseContextCallback?.invoke(it, false) }
+                            actor.runWithClassLoader {
+                                (args.getOrNull(0) as? Context)?.also { actor.attachBaseContextCallback?.invoke(it, false) }
+                            }
                         }
                     }
                 }
                 after {
                     runLifecycle(module) {
                         appLifecycleActors.forEach { (_, actor) ->
-                            (args.getOrNull(0) as? Context)?.also { actor.attachBaseContextCallback?.invoke(it, true) }
+                            actor.runWithClassLoader {
+                                (args.getOrNull(0) as? Context)?.also { actor.attachBaseContextCallback?.invoke(it, true) }
+                            }
                         }
                     }
                 }
@@ -44,7 +50,9 @@ internal object AppLifecycleManager {
                 after {
                     runLifecycle(module) {
                         (instanceOrNull as? Application)?.also { app ->
-                            appLifecycleActors.forEach { (_, actor) -> actor.onTerminateCallback?.invoke(app) }
+                            appLifecycleActors.forEach { (_, actor) ->
+                                actor.runWithClassLoader { onTerminateCallback?.invoke(app) }
+                            }
                         }
                     }
                 }
@@ -53,7 +61,9 @@ internal object AppLifecycleManager {
                 after {
                     runLifecycle(module) {
                         (instanceOrNull as? Application)?.also { app ->
-                            appLifecycleActors.forEach { (_, actor) -> actor.onLowMemoryCallback?.invoke(app) }
+                            appLifecycleActors.forEach { (_, actor) ->
+                                actor.runWithClassLoader { onLowMemoryCallback?.invoke(app) }
+                            }
                         }
                     }
                 }
@@ -63,7 +73,9 @@ internal object AppLifecycleManager {
                     runLifecycle(module) {
                         val app = instanceOrNull as? Application ?: return@runLifecycle
                         val level = args.getOrNull(0) as? Int ?: return@runLifecycle
-                        appLifecycleActors.forEach { (_, actor) -> actor.onTrimMemoryCallback?.invoke(app, level) }
+                        appLifecycleActors.forEach { (_, actor) ->
+                            actor.runWithClassLoader { onTrimMemoryCallback?.invoke(app, level) }
+                        }
                     }
                 }
             }
@@ -72,7 +84,9 @@ internal object AppLifecycleManager {
                     runLifecycle(module) {
                         val app = instanceOrNull as? Application ?: return@runLifecycle
                         val config = args.getOrNull(0) as? Configuration ?: return@runLifecycle
-                        appLifecycleActors.forEach { (_, actor) -> actor.onConfigurationChangedCallback?.invoke(app, config) }
+                        appLifecycleActors.forEach { (_, actor) ->
+                            actor.runWithClassLoader { onConfigurationChangedCallback?.invoke(app, config) }
+                        }
                     }
                 }
             }
@@ -82,14 +96,16 @@ internal object AppLifecycleManager {
                         (args.getOrNull(0) as? Application)?.also { app ->
                             EleutheriaX.assignAppContext(app)
                             appLifecycleActors.forEach { (_, actor) ->
-                                actor.onCreateCallback?.invoke(app)
-                                actor.onReceiverActionsCallbacks.forEach { (_, value) ->
-                                    if (value.first.isNotEmpty()) IntentFilter().apply {
-                                        value.first.forEach { action -> addAction(action) }
-                                    }.registerReceiver(app, value.second)
-                                }
-                                actor.onReceiverFiltersCallbacks.forEach { (_, value) ->
-                                    value.first.registerReceiver(app, value.second)
+                                actor.runWithClassLoader {
+                                    onCreateCallback?.invoke(app)
+                                    onReceiverActionsCallbacks.forEach { (_, value) ->
+                                        if (value.first.isNotEmpty()) IntentFilter().apply {
+                                            value.first.forEach { action -> addAction(action) }
+                                        }.registerReceiver(app, value.second)
+                                    }
+                                    onReceiverFiltersCallbacks.forEach { (_, value) ->
+                                        value.first.registerReceiver(app, value.second)
+                                    }
                                 }
                             }
                         }
@@ -99,6 +115,12 @@ internal object AppLifecycleManager {
         }.onFailure {
             module.logE("An exception occurred while registering AppLifecycle", it)
         }
+    }
+
+    private fun AppLifecycleActor.runWithClassLoader(initiate: AppLifecycleActor.() -> Unit) {
+        classLoader?.also {
+            ReflectionUtils.withDefaultClassLoader(it) { initiate() }
+        } ?: initiate()
     }
 
     private fun runLifecycle(module: EleutheriaXModule, initiate: () -> Unit) {
@@ -125,7 +147,9 @@ internal object AppLifecycleManager {
         }
     }
 
-    internal class AppLifecycleActor {
+    internal class AppLifecycleActor(
+        internal var classLoader: ClassLoader? = null
+    ) {
 
         internal var attachBaseContextCallback: ((Context, Boolean) -> Unit)? = null
 
