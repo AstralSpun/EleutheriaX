@@ -6,6 +6,7 @@ import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import org.astralspun.eleutheriax.EleutheriaX
+import org.astralspun.eleutheriax.dexkit.DexResolver
 import org.astralspun.eleutheriax.log.logE
 import org.astralspun.eleutheriax.reflect.ReflectionUtils
 import org.astralspun.eleutheriax.xposed.hook.MemberHookCreator
@@ -159,7 +160,10 @@ abstract class EleutheriaXModule : XposedModule() {
         )?.also {
             runCatching {
                 ReflectionUtils.withDefaultClassLoader(it.appClassLoader) {
-                    packageParamCallback?.invoke(it.instantiate().assign(this, it))
+                    val packageParam = it.instantiate().assign(this, it)
+                    DexResolver.withPackageParam(packageParam) {
+                        packageParamCallback?.invoke(packageParam)
+                    }
                     if (it.type == HookEntryType.PACKAGE) AppLifecycleManager.registerToAppLifecycle(this, it.packageName)
                 }
             }.onFailure {

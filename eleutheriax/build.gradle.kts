@@ -23,4 +23,5 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)
     compileOnly(libs.xposed.api)
+    implementation(libs.dexkit)
 }

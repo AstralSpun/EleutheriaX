@@ -4,19 +4,22 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
 import com.google.android.material.snackbar.Snackbar
+import org.astralspun.eleutheriax.dexkit.DexResolver
+import org.astralspun.eleutheriax.dexkit.findMethod
 import org.astralspun.eleutheriax.reflect.ReflectionUtils
 import org.astralspun.module.hook.base.XBridge
 
 object HookTest : XBridge() {
 
     override fun onHook(ctx: Context, loader: ClassLoader) {
-        val mainActivity: Class<*> = loader.loadClass("org.astralspun.sampleapp.MainActivity")
-
-        ReflectionUtils.findMethod {
-            declaredClass = mainActivity
-            methodName = "onCreate"
+        DexResolver.findClass {
+            searchPackages("org.astralspun.sampleapp")
+            usingStrings("binding", "menu")
+        }.findMethod {
+            methodName("onCreate")
+            returnType(Void.TYPE)
             parameterTypes(Bundle::class.java)
-            parameterCount = 1
+            parameterCount(1)
         }.hook {
             after {
                 Toast.makeText(ctx, "Test", Toast.LENGTH_SHORT).show()

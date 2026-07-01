@@ -4,12 +4,14 @@ coreKtx = "1.19.0"
 appcompat = "1.7.1"
 material = "1.14.0"
 xposedApi = "102.0.0"
+dexKit = "2.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 xposed-api = { group = "io.github.libxposed", name = "api", version.ref = "xposedApi" }
+dexkit = { group = "org.luckypray", name = "dexkit", version.ref = "dexKit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
