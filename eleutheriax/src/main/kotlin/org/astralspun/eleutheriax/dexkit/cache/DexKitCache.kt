@@ -2,16 +2,11 @@ package org.astralspun.eleutheriax.dexkit.cache
 
 import android.content.Context
 import android.os.Build
+import com.alibaba.fastjson2.JSON
+import com.alibaba.fastjson2.JSONArray
+import com.alibaba.fastjson2.JSONObject
 import io.fastkv.FastKV
 import io.fastkv.interfaces.FastCipher
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.astralspun.eleutheriax.reflect.ReflectionUtils
 import java.io.File
 import java.lang.reflect.Constructor
@@ -26,13 +21,6 @@ import javax.crypto.spec.SecretKeySpec
 import kotlin.math.min
 
 internal object DexKitCache {
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = false
-        prettyPrint = true
-        isLenient = false
-    }
 
     private const val STORE_DIR = "EleutheriaX"
     private const val CACHE_ID = "DexKitCache"
@@ -212,14 +200,14 @@ internal object DexKitCache {
             getStringList(key)?.restoreMap(key) { decodeMethod(it, loader) }
 
         private fun putStringList(key: String, value: List<String>) {
-            kv.putString(compressKey(key), json.encodeToString(value))
+            kv.putString(compressKey(key), JSON.toJSONString(value))
         }
 
         private fun getStringList(key: String): List<String>? {
             val fixKey = compressKey(key)
             if (kv.contains(fixKey).not()) return null
             return runCatching {
-                json.decodeFromString<List<String>>(kv.getString(fixKey, "[]") ?: "[]")
+                JSON.parseArray(kv.getString(fixKey, "[]") ?: "[]", String::class.java)
             }.getOrElse {
                 kv.remove(fixKey)
                 null
@@ -235,8 +223,8 @@ internal object DexKitCache {
         private inline fun <T> List<String>.restoreMap(key: String, block: (String) -> T): Map<String, List<T>>? =
             runCatching {
                 associate { raw ->
-                    val item = json.parseToJsonElement(raw).jsonObject
-                    item.string("Key") to item.array("Values").map { block(it.jsonPrimitive.content) }
+                    val item = JSON.parseObject(raw)
+                    item.string("Key") to item.array("Values").toStringList().map(block)
                 }
             }.getOrElse {
                 kv.remove(compressKey(key))
@@ -244,23 +232,23 @@ internal object DexKitCache {
             }
 
         private fun encodeClass(clazz: Class<*>): String =
-            buildJsonObject {
-                put("ClassName", JsonPrimitive(clazz.name))
-            }.toString()
+            JSON.toJSONString(JSONObject().apply {
+                put("ClassName", clazz.name)
+            })
 
         private fun decodeClass(value: String, loader: ClassLoader): Class<*> =
-            ReflectionUtils.findClass(json.parseToJsonElement(value).jsonObject.string("ClassName"), loader)
+            ReflectionUtils.findClass(JSON.parseObject(value).string("ClassName"), loader)
 
         private fun encodeMethod(method: Method): String =
-            buildJsonObject {
-                put("DeclareClass", JsonPrimitive(method.declaringClass.name))
-                put("MethodName", JsonPrimitive(method.name))
-                put("Params", JsonArray(method.parameterTypes.map { JsonPrimitive(it.name) }))
-                put("ReturnType", JsonPrimitive(method.returnType.name))
-            }.toString()
+            JSON.toJSONString(JSONObject().apply {
+                put("DeclareClass", method.declaringClass.name)
+                put("MethodName", method.name)
+                put("Params", method.parameterTypes.map { it.name })
+                put("ReturnType", method.returnType.name)
+            })
 
         private fun decodeMethod(value: String, loader: ClassLoader): Method {
-            val item = json.parseToJsonElement(value).jsonObject
+            val item = JSON.parseObject(value)
             val declaredClass = ReflectionUtils.findClass(item.string("DeclareClass"), loader)
             val params = item.array("Params").toClassArray(loader)
             val returnType = ReflectionUtils.findClass(item.string("ReturnType"), loader)
@@ -271,13 +259,13 @@ internal object DexKitCache {
         }
 
         private fun encodeConstructor(constructor: Constructor<*>): String =
-            buildJsonObject {
-                put("DeclareClass", JsonPrimitive(constructor.declaringClass.name))
-                put("Params", JsonArray(constructor.parameterTypes.map { JsonPrimitive(it.name) }))
-            }.toString()
+            JSON.toJSONString(JSONObject().apply {
+                put("DeclareClass", constructor.declaringClass.name)
+                put("Params", constructor.parameterTypes.map { it.name })
+            })
 
         private fun decodeConstructor(value: String, loader: ClassLoader): Constructor<*> {
-            val item = json.parseToJsonElement(value).jsonObject
+            val item = JSON.parseObject(value)
             val declaredClass = ReflectionUtils.findClass(item.string("DeclareClass"), loader)
             return declaredClass.getDeclaredConstructor(*item.array("Params").toClassArray(loader)).also {
                 it.isAccessible = true
@@ -285,14 +273,14 @@ internal object DexKitCache {
         }
 
         private fun encodeField(field: Field): String =
-            buildJsonObject {
-                put("DeclareClass", JsonPrimitive(field.declaringClass.name))
-                put("FieldName", JsonPrimitive(field.name))
-                put("FieldType", JsonPrimitive(field.type.name))
-            }.toString()
+            JSON.toJSONString(JSONObject().apply {
+                put("DeclareClass", field.declaringClass.name)
+                put("FieldName", field.name)
+                put("FieldType", field.type.name)
+            })
 
         private fun decodeField(value: String, loader: ClassLoader): Field {
-            val item = json.parseToJsonElement(value).jsonObject
+            val item = JSON.parseObject(value)
             val declaredClass = ReflectionUtils.findClass(item.string("DeclareClass"), loader)
             val fieldType = ReflectionUtils.findClass(item.string("FieldType"), loader)
             return declaredClass.getDeclaredField(item.string("FieldName")).also {
@@ -302,19 +290,22 @@ internal object DexKitCache {
         }
 
         private fun encodeGroup(key: String, values: List<String>): String =
-            buildJsonObject {
-                put("Key", JsonPrimitive(key))
-                put("Values", JsonArray(values.map { JsonPrimitive(it) }))
-            }.toString()
+            JSON.toJSONString(JSONObject().apply {
+                put("Key", key)
+                put("Values", values)
+            })
 
-        private fun JsonObject.string(key: String): String =
-            getValue(key).jsonPrimitive.content
+        private fun JSONObject.string(key: String): String =
+            getString(key)
 
-        private fun JsonObject.array(key: String): JsonArray =
-            getValue(key).jsonArray
+        private fun JSONObject.array(key: String): JSONArray =
+            getJSONArray(key)
 
-        private fun JsonArray.toClassArray(loader: ClassLoader): Array<Class<*>> =
-            Array(size) { ReflectionUtils.findClass(this[it].jsonPrimitive.content, loader) }
+        private fun JSONArray.toStringList(): List<String> =
+            List(size) { getString(it) }
+
+        private fun JSONArray.toClassArray(loader: ClassLoader): Array<Class<*>> =
+            Array(size) { ReflectionUtils.findClass(getString(it), loader) }
     }
 
     private class AesGcmCipher(password: String) : FastCipher {

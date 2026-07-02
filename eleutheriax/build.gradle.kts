@@ -25,5 +25,5 @@ dependencies {
     compileOnly(libs.xposed.api)
     implementation(libs.dexkit)
     implementation(libs.fastkv)
-    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.fastjson2)
 }
