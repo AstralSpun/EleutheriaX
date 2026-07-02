@@ -8,7 +8,7 @@ import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
 import io.github.libxposed.api.XposedInterface
 import org.astralspun.eleutheriax.EleutheriaX
-import org.astralspun.eleutheriax.log.logW
+import org.astralspun.eleutheriax.log.logInnerW
 import org.astralspun.eleutheriax.xposed.EleutheriaXModule
 import org.astralspun.eleutheriax.xposed.HookEntryType
 import org.astralspun.eleutheriax.xposed.hook.MemberHookCreator
@@ -137,7 +137,7 @@ open class PackageParam internal constructor(
                 if (it.packageName == currentWrapper.packageName) {
                     hooker.assignInstance(this)
                 } else {
-                    module.logW(
+                    module.logInnerW(
                         "This Hooker \"${hooker::class.java.name}\" is singleton or reused, " +
                             "but the current process has multiple package name \"${currentWrapper.packageName}\", " +
                             "the original is \"${it.packageName}\""

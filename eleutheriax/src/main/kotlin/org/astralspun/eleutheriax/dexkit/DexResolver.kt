@@ -2,6 +2,7 @@ package org.astralspun.eleutheriax.dexkit
 
 import org.astralspun.eleutheriax.EleutheriaX
 import org.astralspun.eleutheriax.dexkit.cache.DexKitCache
+import org.astralspun.eleutheriax.log.Elog
 import org.astralspun.eleutheriax.xposed.param.PackageParam
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.BatchFindClassUsingStrings
@@ -164,6 +165,7 @@ object DexResolver {
 
     private fun getOrCreateSession(packageParam: PackageParam, key: String): Session =
         resolvers.getOrPut(key) {
+            Elog.innerD("Create DexResolver session for ${packageParam.packageName}")
             Session(
                 packageName = packageParam.packageName,
                 apkPath = packageParam.appInfo?.sourceDir
@@ -408,17 +410,27 @@ object DexResolver {
             write: (DexKitCache.CacheProxy, T) -> Unit,
             block: () -> T
         ): T {
-            cache[key]?.also { return it as T }
+            cache[key]?.also {
+                Elog.innerD("DexKit memory cache hit [${key.debugKey()}]")
+                return it as T
+            }
             val cacheProxy = cacheProxy()
             cacheProxy?.let { read(it) }?.also {
+                Elog.innerD("DexKit disk cache hit [${key.debugKey()}]")
                 cache[key] = it as Any
                 return it
             }
+            Elog.innerD("DexKit query [${key.debugKey()}]")
             val value = block()
             cache[key] = value as Any
-            cacheProxy?.also { write(it, value) }
+            cacheProxy?.also {
+                write(it, value)
+                Elog.innerD("DexKit disk cache write [${key.debugKey()}]")
+            }
             return value
         }
+
+        private fun String.debugKey() = if (length > 180) take(180) + "..." else this
 
         private fun cacheProxy(): DexKitCache.CacheProxy? =
             DexKitCache.get(EleutheriaX.appContext, packageName, apkPath)

@@ -11,7 +11,8 @@ import android.content.res.Configuration
 import android.os.Build
 import org.astralspun.eleutheriax.EleutheriaX
 import org.astralspun.eleutheriax.dexkit.DexResolver
-import org.astralspun.eleutheriax.log.logE
+import org.astralspun.eleutheriax.log.logInnerD
+import org.astralspun.eleutheriax.log.logInnerE
 import org.astralspun.eleutheriax.reflect.ReflectionUtils
 import org.astralspun.eleutheriax.xposed.EleutheriaXModule
 import org.astralspun.eleutheriax.xposed.hook.hook
@@ -123,8 +124,9 @@ internal object AppLifecycleManager {
                     }
                 }
             }
+            module.logInnerD("AppLifecycle registered for $packageName")
         }.onFailure {
-            module.logE("An exception occurred while registering AppLifecycle", it)
+            module.logInnerE("An exception occurred while registering AppLifecycle", it)
         }
     }
 
@@ -142,7 +144,7 @@ internal object AppLifecycleManager {
     private fun runLifecycle(module: EleutheriaXModule, initiate: () -> Unit) {
         runCatching(initiate).onFailure {
             if (isOnFailureThrowToApp != false) throw it
-            else module.logE("An exception occurred during AppLifecycle event", it)
+            else module.logInnerE("An exception occurred during AppLifecycle event", it)
         }
     }
 

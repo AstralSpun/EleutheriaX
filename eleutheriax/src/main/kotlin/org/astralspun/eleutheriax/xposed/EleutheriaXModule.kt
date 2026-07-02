@@ -7,7 +7,9 @@ import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import org.astralspun.eleutheriax.EleutheriaX
 import org.astralspun.eleutheriax.dexkit.DexResolver
-import org.astralspun.eleutheriax.log.logE
+import org.astralspun.eleutheriax.log.Elog
+import org.astralspun.eleutheriax.log.logInnerD
+import org.astralspun.eleutheriax.log.logInnerE
 import org.astralspun.eleutheriax.reflect.ReflectionUtils
 import org.astralspun.eleutheriax.xposed.hook.MemberHookCreator
 import org.astralspun.eleutheriax.xposed.hook.hookMember
@@ -42,7 +44,7 @@ abstract class EleutheriaXModule : XposedModule() {
     fun encase(vararg hooker: EleutheriaXBaseHooker) {
         packageParamCallback = {
             if (hooker.isEmpty()) {
-                logE("Failed to passing \"encase\" method because your hooker param is empty")
+                logInnerE("Failed to passing \"encase\" method because your hooker param is empty")
             } else {
                 hooker.forEach { it.assignInstance(this) }
             }
@@ -162,6 +164,7 @@ abstract class EleutheriaXModule : XposedModule() {
             isFirstPackage = isFirstPackage,
             isSystemServer = isSystemServer
         )?.also {
+            logInnerD("Dispatch hook package=$packageName process=$processName stage=$stage type=$type")
             runCatching {
                 ReflectionUtils.withDefaultClassLoader(it.appClassLoader) {
                     val packageParam = it.instantiate().assign(this, it)
@@ -171,7 +174,7 @@ abstract class EleutheriaXModule : XposedModule() {
                     if (it.type == HookEntryType.PACKAGE) AppLifecycleManager.registerToAppLifecycle(this, it.packageName)
                 }
             }.onFailure {
-                logE("An exception occurred in EleutheriaX hook process", it)
+                logInnerE("An exception occurred in EleutheriaX hook process", it)
             }
         }
     }
@@ -180,11 +183,14 @@ abstract class EleutheriaXModule : XposedModule() {
         if (isHookInitialized) return
         isHookInitialized = true
         runCatching {
+            Elog.attach(this)
             DexResolver.setModuleApkPath(moduleApplicationInfo.sourceDir)
             onInit()
+            logInnerD("Initialize EleutheriaX module ${modulePackageName.ifBlank { javaClass.name }}")
             onHook()
+            logInnerD("EleutheriaX module initialized")
         }.onFailure {
-            logE("An exception occurred while initializing EleutheriaX", it)
+            logInnerE("An exception occurred while initializing EleutheriaX", it)
         }
     }
 }
