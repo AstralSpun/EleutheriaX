@@ -13,10 +13,14 @@ import org.luckypray.dexkit.query.FindMethod
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.Timer
+import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 object DexResolver {
+
+    private const val AUTO_CLOSE_TIME = 10 * 1000L
 
     private val isLibraryLoaded = AtomicBoolean(false)
     private val packageParamContext = ThreadLocal<PackageParam?>()
@@ -190,6 +194,7 @@ object DexResolver {
         private val cache = ConcurrentHashMap<String, Any>()
         private val lock = Any()
         private var bridge: DexKitBridge? = null
+        private var closeTimer: Timer? = null
 
         fun findClasses(query: DexClassQuery): DexResult<Class<*>> {
             val sign = query.sign()
@@ -398,6 +403,8 @@ object DexResolver {
 
         fun close() {
             synchronized(lock) {
+                closeTimer?.cancel()
+                closeTimer = null
                 bridge?.close()
                 bridge = null
             }
@@ -435,11 +442,27 @@ object DexResolver {
         private fun cacheProxy(): DexKitCache.CacheProxy? =
             DexKitCache.get(EleutheriaX.appContext, packageName, apkPath)
 
-        private fun <T> withBridge(block: (DexKitBridge) -> T): T = synchronized(lock) {
-            loadLibrary()
-            val current = bridge?.takeIf { it.isValid } ?: DexKitBridge.create(apkPath).also { bridge = it }
-            runCatching { block(current) }.getOrElse {
-                throw DexResolverException("DexResolver query failed in $packageName", it)
+        private fun <T> withBridge(block: (DexKitBridge) -> T): T =
+            synchronized(lock) {
+                loadLibrary()
+                val current = bridge?.takeIf { it.isValid } ?: DexKitBridge.create(apkPath).also { bridge = it }
+                try {
+                    runCatching { block(current) }.getOrElse {
+                        throw DexResolverException("DexResolver query failed in $packageName", it)
+                    }
+                } finally {
+                    resetCloseTimer()
+                }
+            }
+
+        private fun resetCloseTimer() {
+            closeTimer?.cancel()
+            closeTimer = Timer().also {
+                it.schedule(object : TimerTask() {
+                    override fun run() {
+                        close()
+                    }
+                }, AUTO_CLOSE_TIME)
             }
         }
     }

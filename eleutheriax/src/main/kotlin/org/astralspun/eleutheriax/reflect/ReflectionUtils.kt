@@ -5,10 +5,20 @@ import java.lang.reflect.Array as ReflectArray
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.concurrent.ConcurrentHashMap
 
 object ReflectionUtils {
 
     private val classLoaderContext = ThreadLocal<ClassLoader?>()
+    private val classCache = ConcurrentHashMap<CacheKey, Class<*>>()
+    private val methodCache = ConcurrentHashMap<CacheKey, List<Method>>()
+    private val constructorCache = ConcurrentHashMap<CacheKey, List<Constructor<*>>>()
+    private val fieldCache = ConcurrentHashMap<CacheKey, List<Field>>()
+
+    private data class CacheKey(
+        val loader: ClassLoader?,
+        val sign: String
+    )
 
     class Ignore private constructor()
 
@@ -101,17 +111,23 @@ object ReflectionUtils {
             val source = resolveDeclaredClass(declaredClass, declaredClassName, loader)
             val targetReturnType = returnType?.let { resolveClass(it, loader) }
             val targetParameterTypes = parameterTypes?.let { resolveClasses(it, loader) }
-            return Result(buildSign(source), findInHierarchy(source, searchSuperclasses) { clazz ->
-                clazz.declaredMethods
-                    .filter { method -> methodName == null || method.name == methodName }
-                    .filter { method -> targetReturnType == null || typeMatches(method.returnType, targetReturnType, matchParentClass) }
-                    .filter { method -> parameterCount == null || method.parameterCount == parameterCount }
-                    .filter { method -> targetParameterTypes == null || parameterTypesMatch(method.parameterTypes, targetParameterTypes, matchParentClass) }
+            val sign = buildSign(source)
+            return Result(sign, methodCache.getOrPut(cacheKey(source.classLoader, sign)) {
+                findInHierarchy(source, searchSuperclasses) { clazz ->
+                    clazz.declaredMethods.matchToList { method ->
+                        (methodName == null || method.name == methodName) &&
+                            (targetReturnType == null || typeMatches(method.returnType, targetReturnType, matchParentClass)) &&
+                            (parameterCount == null || method.parameterCount == parameterCount) &&
+                            (targetParameterTypes == null ||
+                                parameterTypesMatch(method.parameterTypes, targetParameterTypes, matchParentClass))
+                    }
+                }
             })
         }
 
         private fun buildSign(source: Class<*>): String =
-            "method:${source.name} $returnType $methodName($parameterCount ${parameterTypes.contentToString()})"
+            "method:${source.name} $returnType $methodName($parameterCount ${parameterTypes.contentToString()}) " +
+                "parent=$matchParentClass super=$searchSuperclasses"
     }
 
     class ConstructorFinder internal constructor() {
@@ -135,13 +151,18 @@ object ReflectionUtils {
         fun find(): Result<Constructor<*>> {
             val source = resolveDeclaredClass(declaredClass, declaredClassName, loader)
             val targetParameterTypes = parameterTypes?.let { resolveClasses(it, loader) }
-            return Result(buildSign(source), source.declaredConstructors
-                .filter { constructor -> parameterCount == null || constructor.parameterCount == parameterCount }
-                .filter { constructor -> targetParameterTypes == null || parameterTypesMatch(constructor.parameterTypes, targetParameterTypes, matchParentClass) })
+            val sign = buildSign(source)
+            return Result(sign, constructorCache.getOrPut(cacheKey(source.classLoader, sign)) {
+                source.declaredConstructors.matchToList { constructor ->
+                    (parameterCount == null || constructor.parameterCount == parameterCount) &&
+                        (targetParameterTypes == null ||
+                            parameterTypesMatch(constructor.parameterTypes, targetParameterTypes, matchParentClass))
+                }
+            })
         }
 
         private fun buildSign(source: Class<*>): String =
-            "constructor:${source.name} $parameterCount ${parameterTypes.contentToString()}"
+            "constructor:${source.name} $parameterCount ${parameterTypes.contentToString()} parent=$matchParentClass"
     }
 
     class FieldFinder internal constructor() {
@@ -164,15 +185,19 @@ object ReflectionUtils {
         fun find(): Result<Field> {
             val source = resolveDeclaredClass(declaredClass, declaredClassName, loader)
             val targetFieldType = fieldType?.let { resolveClass(it, loader) }
-            return Result(buildSign(source), findInHierarchy(source, searchSuperclasses) { clazz ->
-                clazz.declaredFields
-                    .filter { field -> fieldName == null || field.name == fieldName }
-                    .filter { field -> targetFieldType == null || typeMatches(field.type, targetFieldType, matchParentClass) }
+            val sign = buildSign(source)
+            return Result(sign, fieldCache.getOrPut(cacheKey(source.classLoader, sign)) {
+                findInHierarchy(source, searchSuperclasses) { clazz ->
+                    clazz.declaredFields.matchToList { field ->
+                        (fieldName == null || field.name == fieldName) &&
+                            (targetFieldType == null || typeMatches(field.type, targetFieldType, matchParentClass))
+                    }
+                }
             })
         }
 
         private fun buildSign(source: Class<*>): String =
-            "field:${source.name} $fieldType $fieldName"
+            "field:${source.name} $fieldType $fieldName parent=$matchParentClass super=$searchSuperclasses"
     }
 
     fun findClass(init: ClassFinder.() -> Unit): Class<*> =
@@ -188,10 +213,13 @@ object ReflectionUtils {
         val className = normalizeClassName(name)
         primitiveTypes[className]?.let { return it }
         simplePrimitiveTypes[className]?.let { return it }
+        val targetLoader = loader ?: defaultClassLoader()
         return if (className.endsWith("[]")) {
-            findArrayClass(className, loader)
+            classCache.getOrPut(cacheKey(targetLoader, className)) { findArrayClass(className, targetLoader) }
         } else {
-            Class.forName(className, false, loader ?: defaultClassLoader())
+            classCache.getOrPut(cacheKey(targetLoader, className)) {
+                Class.forName(className, false, targetLoader)
+            }
         }
     }
 
@@ -325,6 +353,15 @@ object ReflectionUtils {
         }
         return component
     }
+
+    private fun <T> Array<T>.matchToList(predicate: (T) -> Boolean): List<T> {
+        val result = ArrayList<T>()
+        forEach { if (predicate(it)) result.add(it) }
+        return result
+    }
+
+    private fun cacheKey(loader: ClassLoader?, sign: String): CacheKey =
+        CacheKey(loader, sign)
 
     private val primitiveTypes = mapOf(
         "void" to Void.TYPE,

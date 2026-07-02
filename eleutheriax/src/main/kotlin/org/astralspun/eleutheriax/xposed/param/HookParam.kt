@@ -8,8 +8,10 @@ import java.lang.reflect.Method
 class HookParam internal constructor(
     private val module: XposedInterface,
     private val chain: XposedInterface.Chain,
-    internal var argsArray: Array<Any?>
+    initialArgs: Array<Any?>? = null
 ) {
+
+    private var argsArray: Array<Any?>? = initialArgs
 
     val member: Executable get() = chain.executable
 
@@ -24,7 +26,7 @@ class HookParam internal constructor(
 
     val instanceOrNull: Any? get() = chain.thisObject
 
-    val args: Array<Any?> get() = argsArray
+    val args: Array<Any?> get() = requireArgsArray()
 
     var result: Any? = null
 
@@ -33,7 +35,7 @@ class HookParam internal constructor(
     val hasThrowable get() = throwable != null
 
     fun proceed(): Any? {
-        result = chain.proceed(argsArray)
+        result = chain.proceed(requireArgsArray())
         return result
     }
 
@@ -43,7 +45,7 @@ class HookParam internal constructor(
     }
 
     fun callOriginal(vararg args: Any?): Any? {
-        val callArgs = if (args.isEmpty()) argsArray else arrayOf(*args)
+        val callArgs = if (args.isEmpty()) requireArgsArray() else arrayOf(*args)
         return when (val executable = member) {
             is Method -> module.getInvoker(executable)
                 .setType(XposedInterface.Invoker.Type.ORIGIN)
@@ -71,4 +73,7 @@ class HookParam internal constructor(
     fun resultNull() {
         result = null
     }
+
+    private fun requireArgsArray(): Array<Any?> =
+        argsArray ?: chain.args.toTypedArray().also { argsArray = it }
 }

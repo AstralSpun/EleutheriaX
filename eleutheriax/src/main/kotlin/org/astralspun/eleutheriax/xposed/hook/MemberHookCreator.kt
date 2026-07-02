@@ -44,10 +44,10 @@ class MemberHookCreator internal constructor(
     fun intercept() = replaceTo(null)
 
     internal fun createHooker() = XposedInterface.Hooker { chain ->
-        val param = HookParam(module, chain, chain.args.toTypedArray())
         replaceCallback?.let {
-            return@Hooker it(param)
+            return@Hooker it(HookParam(module, chain))
         }
+        val param = HookParam(module, chain, chain.args.toTypedArray())
         beforeCallback?.invoke(param)
         param.proceed()
         afterCallback?.invoke(param)
