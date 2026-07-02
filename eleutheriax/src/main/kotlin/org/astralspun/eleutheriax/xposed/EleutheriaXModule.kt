@@ -31,6 +31,10 @@ abstract class EleutheriaXModule : XposedModule() {
 
     abstract fun onHook()
 
+    fun configs(initiate: EleutheriaXConfigs.() -> Unit) {
+        EleutheriaXConfigs().initiate()
+    }
+
     fun encase(initiate: PackageParam.() -> Unit) {
         packageParamCallback = initiate
     }
@@ -176,6 +180,7 @@ abstract class EleutheriaXModule : XposedModule() {
         if (isHookInitialized) return
         isHookInitialized = true
         runCatching {
+            DexResolver.setModuleApkPath(moduleApplicationInfo.sourceDir)
             onInit()
             onHook()
         }.onFailure {

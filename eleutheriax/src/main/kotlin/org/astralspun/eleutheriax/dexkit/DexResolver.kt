@@ -1,5 +1,7 @@
 package org.astralspun.eleutheriax.dexkit
 
+import org.astralspun.eleutheriax.EleutheriaX
+import org.astralspun.eleutheriax.dexkit.cache.DexKitCache
 import org.astralspun.eleutheriax.xposed.param.PackageParam
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.BatchFindClassUsingStrings
@@ -93,6 +95,22 @@ object DexResolver {
         current().clearCache()
     }
 
+    fun setCachePassword(password: String) {
+        resolvers.values.forEach { it.clearMemoryCache() }
+        DexKitCache.setPassword(password)
+    }
+
+    fun clearCachePassword() {
+        resolvers.values.forEach { it.clearMemoryCache() }
+        DexKitCache.clearPassword()
+    }
+
+    internal fun setModuleApkPath(apkPath: String?) {
+        if (DexKitCache.setModuleApkPath(apkPath)) {
+            resolvers.values.forEach { it.clearMemoryCache() }
+        }
+    }
+
     fun close() {
         current().close()
     }
@@ -173,7 +191,12 @@ object DexResolver {
 
         fun findClasses(query: DexClassQuery): DexResult<Class<*>> {
             val sign = query.sign()
-            return DexResult(sign, cached("class:$sign") {
+            val key = "class:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getClassList(key, classLoader) },
+                write = { cache, value -> cache.putClassList(key, value) }
+            ) {
                 withBridge { bridge ->
                     bridge.findClass(query.buildFindClass() as FindClass).map { it.getInstance(classLoader) }
                 }
@@ -183,7 +206,12 @@ object DexResolver {
         fun findClassesInClasses(classes: Collection<Class<*>>, query: DexClassQuery): DexResult<Class<*>> {
             val sign = "${classes.joinToString { it.name }}:${query.sign()}"
             if (classes.isEmpty()) return DexResult(sign, emptyList())
-            return DexResult(sign, cached("classIn:$sign") {
+            val key = "classIn:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getClassList(key, classLoader) },
+                write = { cache, value -> cache.putClassList(key, value) }
+            ) {
                 withBridge { bridge ->
                     (query.buildFindClass() as FindClass).also {
                         it.searchIn(classes.mapNotNull(bridge::getClassData))
@@ -195,7 +223,12 @@ object DexResolver {
 
         fun findMethods(query: DexMethodQuery): DexResult<Method> {
             val sign = query.sign()
-            return DexResult(sign, cached("method:$sign") {
+            val key = "method:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getMethodList(key, classLoader) },
+                write = { cache, value -> cache.putMethodList(key, value) }
+            ) {
                 withBridge { bridge ->
                     bridge.findMethod(query.buildFindMethod() as FindMethod)
                         .filter { it.isMethod }
@@ -207,7 +240,12 @@ object DexResolver {
         fun findMethodsInClasses(classes: Collection<Class<*>>, query: DexMethodQuery): DexResult<Method> {
             val sign = "${classes.joinToString { it.name }}:${query.sign()}"
             if (classes.isEmpty()) return DexResult(sign, emptyList())
-            return DexResult(sign, cached("methodIn:$sign") {
+            val key = "methodIn:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getMethodList(key, classLoader) },
+                write = { cache, value -> cache.putMethodList(key, value) }
+            ) {
                 withBridge { bridge ->
                     (query.buildFindMethod() as FindMethod).also {
                         it.searchInClass(classes.mapNotNull(bridge::getClassData))
@@ -220,7 +258,12 @@ object DexResolver {
 
         fun findConstructors(query: DexMethodQuery): DexResult<Constructor<*>> {
             val sign = query.sign()
-            return DexResult(sign, cached("constructor:$sign") {
+            val key = "constructor:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getConstructorList(key, classLoader) },
+                write = { cache, value -> cache.putConstructorList(key, value) }
+            ) {
                 withBridge { bridge ->
                     bridge.findMethod(query.buildFindMethod() as FindMethod)
                         .filter { it.isConstructor }
@@ -232,7 +275,12 @@ object DexResolver {
         fun findConstructorsInClasses(classes: Collection<Class<*>>, query: DexMethodQuery): DexResult<Constructor<*>> {
             val sign = "${classes.joinToString { it.name }}:${query.sign()}"
             if (classes.isEmpty()) return DexResult(sign, emptyList())
-            return DexResult(sign, cached("constructorIn:$sign") {
+            val key = "constructorIn:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getConstructorList(key, classLoader) },
+                write = { cache, value -> cache.putConstructorList(key, value) }
+            ) {
                 withBridge { bridge ->
                     (query.buildFindMethod() as FindMethod).also {
                         it.searchInClass(classes.mapNotNull(bridge::getClassData))
@@ -245,7 +293,12 @@ object DexResolver {
 
         fun findFields(query: DexFieldQuery): DexResult<Field> {
             val sign = query.sign()
-            return DexResult(sign, cached("field:$sign") {
+            val key = "field:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getFieldList(key, classLoader) },
+                write = { cache, value -> cache.putFieldList(key, value) }
+            ) {
                 withBridge { bridge ->
                     bridge.findField(query.buildFindField() as FindField)
                         .map { it.getFieldInstance(classLoader).apply { isAccessible = true } }
@@ -256,7 +309,12 @@ object DexResolver {
         fun findFieldsInClasses(classes: Collection<Class<*>>, query: DexFieldQuery): DexResult<Field> {
             val sign = "${classes.joinToString { it.name }}:${query.sign()}"
             if (classes.isEmpty()) return DexResult(sign, emptyList())
-            return DexResult(sign, cached("fieldIn:$sign") {
+            val key = "fieldIn:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getFieldList(key, classLoader) },
+                write = { cache, value -> cache.putFieldList(key, value) }
+            ) {
                 withBridge { bridge ->
                     (query.buildFindField() as FindField).also {
                         it.searchInClass(classes.mapNotNull(bridge::getClassData))
@@ -269,7 +327,12 @@ object DexResolver {
         fun findFieldsInMethods(methods: Collection<Method>, usingType: DexUsingType, query: DexFieldQuery): DexResult<Field> {
             val sign = "${methods.joinToString { it.toString() }}:$usingType:${query.sign()}"
             if (methods.isEmpty()) return DexResult(sign, emptyList())
-            return DexResult(sign, cached("fieldInMethod:$sign") {
+            val key = "fieldInMethod:$sign"
+            return DexResult(sign, cached(
+                key,
+                read = { it.getFieldList(key, classLoader) },
+                write = { cache, value -> cache.putFieldList(key, value) }
+            ) {
                 withBridge { bridge ->
                     (query.buildFindField() as FindField).also {
                         it.searchInField(
@@ -291,7 +354,12 @@ object DexResolver {
 
         fun batchFindClassesUsingStrings(query: DexBatchUsingStringsQuery): Map<String, DexResult<Class<*>>> {
             val sign = query.sign()
-            return cached("batchClass:$sign") {
+            val key = "batchClass:$sign"
+            return cached(
+                key,
+                read = { it.getClassMap(key, classLoader) },
+                write = { cache, value -> cache.putClassMap(key, value) }
+            ) {
                 withBridge { bridge ->
                     bridge.batchFindClassUsingStrings(query.buildClassQuery() as BatchFindClassUsingStrings).mapValues { (_, value) ->
                         value.map { it.getInstance(classLoader) }
@@ -302,7 +370,12 @@ object DexResolver {
 
         fun batchFindMethodsUsingStrings(query: DexBatchUsingStringsQuery): Map<String, DexResult<Method>> {
             val sign = query.sign()
-            return cached("batchMethod:$sign") {
+            val key = "batchMethod:$sign"
+            return cached(
+                key,
+                read = { it.getMethodMap(key, classLoader) },
+                write = { cache, value -> cache.putMethodMap(key, value) }
+            ) {
                 withBridge { bridge ->
                     bridge.batchFindMethodUsingStrings(query.buildMethodQuery() as BatchFindMethodUsingStrings).mapValues { (_, value) ->
                         value.filter { it.isMethod }
@@ -314,6 +387,11 @@ object DexResolver {
 
         fun clearCache() {
             cache.clear()
+            cacheProxy()?.clearCache() ?: DexKitCache.clearKnown()
+        }
+
+        fun clearMemoryCache() {
+            cache.clear()
         }
 
         fun close() {
@@ -324,8 +402,26 @@ object DexResolver {
         }
 
         @Suppress("UNCHECKED_CAST")
-        private fun <T> cached(key: String, block: () -> T): T =
-            cache.computeIfAbsent(key) { block() as Any } as T
+        private fun <T> cached(
+            key: String,
+            read: (DexKitCache.CacheProxy) -> T?,
+            write: (DexKitCache.CacheProxy, T) -> Unit,
+            block: () -> T
+        ): T {
+            cache[key]?.also { return it as T }
+            val cacheProxy = cacheProxy()
+            cacheProxy?.let { read(it) }?.also {
+                cache[key] = it as Any
+                return it
+            }
+            val value = block()
+            cache[key] = value as Any
+            cacheProxy?.also { write(it, value) }
+            return value
+        }
+
+        private fun cacheProxy(): DexKitCache.CacheProxy? =
+            DexKitCache.get(EleutheriaX.appContext, packageName, apkPath)
 
         private fun <T> withBridge(block: (DexKitBridge) -> T): T = synchronized(lock) {
             loadLibrary()

@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.content.res.Configuration
 import android.os.Build
 import org.astralspun.eleutheriax.EleutheriaX
+import org.astralspun.eleutheriax.dexkit.DexResolver
 import org.astralspun.eleutheriax.log.logE
 import org.astralspun.eleutheriax.reflect.ReflectionUtils
 import org.astralspun.eleutheriax.xposed.EleutheriaXModule
@@ -26,7 +27,11 @@ internal object AppLifecycleManager {
     internal fun get(param: PackageParam) =
         appLifecycleActors[param.packageName]?.also {
             it.classLoader = param.appClassLoader
-        } ?: AppLifecycleActor(param.appClassLoader).also { appLifecycleActors[param.packageName] = it }
+            it.packageParam = param
+        } ?: AppLifecycleActor(param.appClassLoader).also {
+            it.packageParam = param
+            appLifecycleActors[param.packageName] = it
+        }
 
     @SuppressLint("DiscouragedPrivateApi")
     internal fun registerToAppLifecycle(module: EleutheriaXModule, packageName: String) {
@@ -36,7 +41,7 @@ internal object AppLifecycleManager {
                 before {
                     runLifecycle(module) {
                         appLifecycleActors.forEach { (_, actor) ->
-                            actor.runWithClassLoader {
+                            actor.runInScope {
                                 (args.getOrNull(0) as? Context)?.also { actor.attachBaseContextCallback?.invoke(it, false) }
                             }
                         }
@@ -45,7 +50,7 @@ internal object AppLifecycleManager {
                 after {
                     runLifecycle(module) {
                         appLifecycleActors.forEach { (_, actor) ->
-                            actor.runWithClassLoader {
+                            actor.runInScope {
                                 (args.getOrNull(0) as? Context)?.also { actor.attachBaseContextCallback?.invoke(it, true) }
                             }
                         }
@@ -57,7 +62,7 @@ internal object AppLifecycleManager {
                     runLifecycle(module) {
                         (instanceOrNull as? Application)?.also { app ->
                             appLifecycleActors.forEach { (_, actor) ->
-                                actor.runWithClassLoader { onTerminateCallback?.invoke(app) }
+                                actor.runInScope { onTerminateCallback?.invoke(app) }
                             }
                         }
                     }
@@ -68,7 +73,7 @@ internal object AppLifecycleManager {
                     runLifecycle(module) {
                         (instanceOrNull as? Application)?.also { app ->
                             appLifecycleActors.forEach { (_, actor) ->
-                                actor.runWithClassLoader { onLowMemoryCallback?.invoke(app) }
+                                actor.runInScope { onLowMemoryCallback?.invoke(app) }
                             }
                         }
                     }
@@ -80,7 +85,7 @@ internal object AppLifecycleManager {
                         val app = instanceOrNull as? Application ?: return@runLifecycle
                         val level = args.getOrNull(0) as? Int ?: return@runLifecycle
                         appLifecycleActors.forEach { (_, actor) ->
-                            actor.runWithClassLoader { onTrimMemoryCallback?.invoke(app, level) }
+                            actor.runInScope { onTrimMemoryCallback?.invoke(app, level) }
                         }
                     }
                 }
@@ -91,7 +96,7 @@ internal object AppLifecycleManager {
                         val app = instanceOrNull as? Application ?: return@runLifecycle
                         val config = args.getOrNull(0) as? Configuration ?: return@runLifecycle
                         appLifecycleActors.forEach { (_, actor) ->
-                            actor.runWithClassLoader { onConfigurationChangedCallback?.invoke(app, config) }
+                            actor.runInScope { onConfigurationChangedCallback?.invoke(app, config) }
                         }
                     }
                 }
@@ -102,7 +107,7 @@ internal object AppLifecycleManager {
                         (args.getOrNull(0) as? Application)?.also { app ->
                             EleutheriaX.assignAppContext(app)
                             appLifecycleActors.forEach { (_, actor) ->
-                                actor.runWithClassLoader {
+                                actor.runInScope {
                                     onCreateCallback?.invoke(app)
                                     onReceiverActionsCallbacks.forEach { (_, value) ->
                                         if (value.first.isNotEmpty()) IntentFilter().apply {
@@ -123,10 +128,15 @@ internal object AppLifecycleManager {
         }
     }
 
-    private fun AppLifecycleActor.runWithClassLoader(initiate: AppLifecycleActor.() -> Unit) {
-        classLoader?.also {
-            ReflectionUtils.withDefaultClassLoader(it) { initiate() }
-        } ?: initiate()
+    private fun AppLifecycleActor.runInScope(initiate: AppLifecycleActor.() -> Unit) {
+        val block = {
+            classLoader?.also {
+                ReflectionUtils.withDefaultClassLoader(it) { initiate() }
+            } ?: initiate()
+        }
+        packageParam?.also {
+            DexResolver.withPackageParam(it, block)
+        } ?: block()
     }
 
     private fun runLifecycle(module: EleutheriaXModule, initiate: () -> Unit) {
@@ -156,6 +166,8 @@ internal object AppLifecycleManager {
     internal class AppLifecycleActor(
         internal var classLoader: ClassLoader? = null
     ) {
+
+        internal var packageParam: PackageParam? = null
 
         internal var attachBaseContextCallback: ((Context, Boolean) -> Unit)? = null
 
